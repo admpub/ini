@@ -256,16 +256,3 @@ func (s *Section) ChildSections() []*Section {
 	}
 	return children
 }
-
-//==========================
-//added by admpub
-//==========================
-
-// Clone copy
-func (s *Section) Clone(newName string) *Section {
-	clone, _ := s.f.NewSection(newName)
-	for _, key := range s.KeyStrings() {
-		clone.Key(key).SetValue(s.Key(key).String())
-	}
-	return clone
-}
