@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	_CONF_DATA = `
+	confData = `
 	; Package name
 	NAME        = ini
 	; Package version
@@ -43,9 +43,9 @@ const (
 	Coding addict.
 	Good man.
 	"""  # Succeeding comment`
-	_MINIMAL_CONF   = "testdata/minimal.ini"
-	_FULL_CONF      = "testdata/full.ini"
-	_NOT_FOUND_CONF = "testdata/404.ini"
+	minimalConf  = "testdata/minimal.ini"
+	fullConf     = "testdata/full.ini"
+	notFoundConf = "testdata/404.ini"
 )
 
 var update = flag.Bool("update", false, "Update .golden files")
@@ -78,7 +78,7 @@ NAME = Unknwon
 
 	Convey("Load from bad data sources", t, func() {
 		Convey("Invalid input", func() {
-			_, err := ini.Load(_NOT_FOUND_CONF)
+			_, err := ini.Load(notFoundConf)
 			So(err, ShouldNotBeNil)
 		})
 
@@ -229,12 +229,12 @@ long_rsa_private_key = -----BEGIN RSA PRIVATE KEY-----
 
 func TestLooseLoad(t *testing.T) {
 	Convey("Load from data sources with option `Loose` true", t, func() {
-		f, err := ini.LoadSources(ini.LoadOptions{Loose: true}, _NOT_FOUND_CONF, _MINIMAL_CONF)
+		f, err := ini.LoadSources(ini.LoadOptions{Loose: true}, notFoundConf, minimalConf)
 		So(err, ShouldBeNil)
 		So(f, ShouldNotBeNil)
 
 		Convey("Inverse case", func() {
-			_, err = ini.Load(_NOT_FOUND_CONF)
+			_, err = ini.Load(notFoundConf)
 			So(err, ShouldNotBeNil)
 		})
 	})
@@ -242,7 +242,7 @@ func TestLooseLoad(t *testing.T) {
 
 func TestInsensitiveLoad(t *testing.T) {
 	Convey("Insensitive to section and key names", t, func() {
-		f, err := ini.InsensitiveLoad(_MINIMAL_CONF)
+		f, err := ini.InsensitiveLoad(minimalConf)
 		So(err, ShouldBeNil)
 		So(f, ShouldNotBeNil)
 
@@ -259,12 +259,25 @@ e-mail = u@gogs.io
 		})
 
 		Convey("Inverse case", func() {
-			f, err := ini.Load(_MINIMAL_CONF)
+			f, err := ini.Load(minimalConf)
 			So(err, ShouldBeNil)
 			So(f, ShouldNotBeNil)
 
 			So(f.Section("Author").Key("e-mail").String(), ShouldBeEmpty)
 		})
+	})
+
+	// Ref: https://github.com/go-ini/ini/issues/198
+	Convey("Insensitive load with default section", t, func() {
+		f, err := ini.InsensitiveLoad([]byte(`
+user = unknwon
+[profile]
+email = unknwon@local
+`))
+		So(err, ShouldBeNil)
+		So(f, ShouldNotBeNil)
+
+		So(f.Section(ini.DefaultSection).Key("user").String(), ShouldEqual, "unknwon")
 	})
 }
 
@@ -272,18 +285,18 @@ func TestLoadSources(t *testing.T) {
 	Convey("Load from data sources with options", t, func() {
 		Convey("with true `AllowPythonMultilineValues`", func() {
 			Convey("Ignore nonexistent files", func() {
-				f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true, Loose: true}, _NOT_FOUND_CONF, _MINIMAL_CONF)
+				f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true, Loose: true}, notFoundConf, minimalConf)
 				So(err, ShouldBeNil)
 				So(f, ShouldNotBeNil)
 
 				Convey("Inverse case", func() {
-					_, err = ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true}, _NOT_FOUND_CONF)
+					_, err = ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true}, notFoundConf)
 					So(err, ShouldNotBeNil)
 				})
 			})
 
 			Convey("Insensitive to section and key names", func() {
-				f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true, Insensitive: true}, _MINIMAL_CONF)
+				f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true, Insensitive: true}, minimalConf)
 				So(err, ShouldBeNil)
 				So(f, ShouldNotBeNil)
 
@@ -300,7 +313,7 @@ e-mail = u@gogs.io
 				})
 
 				Convey("Inverse case", func() {
-					f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true}, _MINIMAL_CONF)
+					f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true}, minimalConf)
 					So(err, ShouldBeNil)
 					So(f, ShouldNotBeNil)
 
@@ -507,11 +520,16 @@ long_rsa_private_key = -----BEGIN RSA PRIVATE KEY-----
   foobar
   barfoo
   -----END RSA PRIVATE KEY-----
+multiline_list =
+  first
+  second
+  third
 `))
 				So(err, ShouldBeNil)
 				So(f, ShouldNotBeNil)
 
 				So(f.Section("long").Key("long_rsa_private_key").String(), ShouldEqual, "-----BEGIN RSA PRIVATE KEY-----\nfoo\nbar\nfoobar\nbarfoo\n-----END RSA PRIVATE KEY-----")
+				So(f.Section("long").Key("multiline_list").String(), ShouldEqual, "\nfirst\nsecond\nthird")
 			})
 
 			Convey("Can parse big python-compatible INI files", func() {
@@ -817,18 +835,26 @@ GITHUB = U;n;k;n;w;o;n
 
 		Convey("with false `AllowPythonMultilineValues`", func() {
 			Convey("Ignore nonexistent files", func() {
-				f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: false, Loose: true}, _NOT_FOUND_CONF, _MINIMAL_CONF)
+				f, err := ini.LoadSources(ini.LoadOptions{
+					AllowPythonMultilineValues: false,
+					Loose:                      true,
+				}, notFoundConf, minimalConf)
 				So(err, ShouldBeNil)
 				So(f, ShouldNotBeNil)
 
 				Convey("Inverse case", func() {
-					_, err = ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: false}, _NOT_FOUND_CONF)
+					_, err = ini.LoadSources(ini.LoadOptions{
+						AllowPythonMultilineValues: false,
+					}, notFoundConf)
 					So(err, ShouldNotBeNil)
 				})
 			})
 
 			Convey("Insensitive to section and key names", func() {
-				f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: false, Insensitive: true}, _MINIMAL_CONF)
+				f, err := ini.LoadSources(ini.LoadOptions{
+					AllowPythonMultilineValues: false,
+					Insensitive:                true,
+				}, minimalConf)
 				So(err, ShouldBeNil)
 				So(f, ShouldNotBeNil)
 
@@ -845,7 +871,9 @@ e-mail = u@gogs.io
 				})
 
 				Convey("Inverse case", func() {
-					f, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: false}, _MINIMAL_CONF)
+					f, err := ini.LoadSources(ini.LoadOptions{
+						AllowPythonMultilineValues: false,
+					}, minimalConf)
 					So(err, ShouldBeNil)
 					So(f, ShouldNotBeNil)
 
@@ -1229,5 +1257,54 @@ GITHUB = U;n;k;n;w;o;n
 				})
 			})
 		})
+	})
+}
+
+func Test_KeyValueDelimiters(t *testing.T) {
+	Convey("Custom key-value delimiters", t, func() {
+		f, err := ini.LoadSources(ini.LoadOptions{
+			KeyValueDelimiters: "?!",
+		}, []byte(`
+[section]
+key1?value1
+key2!value2
+`))
+		So(err, ShouldBeNil)
+		So(f, ShouldNotBeNil)
+
+		So(f.Section("section").Key("key1").String(), ShouldEqual, "value1")
+		So(f.Section("section").Key("key2").String(), ShouldEqual, "value2")
+	})
+}
+
+func Test_PreserveSurroundedQuote(t *testing.T) {
+	Convey("Preserve surrounded quote test", t, func() {
+		f, err := ini.LoadSources(ini.LoadOptions{
+			PreserveSurroundedQuote: true,
+		}, []byte(`
+[section]
+key1 = "value1"
+key2 = value2
+`))
+		So(err, ShouldBeNil)
+		So(f, ShouldNotBeNil)
+
+		So(f.Section("section").Key("key1").String(), ShouldEqual, "\"value1\"")
+		So(f.Section("section").Key("key2").String(), ShouldEqual, "value2")
+	})
+
+	Convey("Preserve surrounded quote test inverse test", t, func() {
+		f, err := ini.LoadSources(ini.LoadOptions{
+			PreserveSurroundedQuote: false,
+		}, []byte(`
+[section]
+key1 = "value1"
+key2 = value2
+`))
+		So(err, ShouldBeNil)
+		So(f, ShouldNotBeNil)
+
+		So(f.Section("section").Key("key1").String(), ShouldEqual, "value1")
+		So(f.Section("section").Key("key2").String(), ShouldEqual, "value2")
 	})
 }
